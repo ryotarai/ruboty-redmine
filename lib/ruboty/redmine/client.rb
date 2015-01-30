@@ -58,6 +58,8 @@ module Ruboty
         if basic_auth_user && basic_auth_password
           conn.basic_auth(basic_auth_user, basic_auth_password)
         end
+
+        conn
       end
 
       def get(path, params = {})
