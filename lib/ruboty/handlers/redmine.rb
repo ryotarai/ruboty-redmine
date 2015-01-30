@@ -3,6 +3,8 @@ module Ruboty
     class Redmine < Base
       env :REDMINE_URL, 'Redmine url (e.g. http://your-redmine)', optional: false
       env :REDMINE_API_KEY, 'Redmine REST API key', optional: false
+      env :REDMINE_BASIC_AUTH_USER, 'Basic Auth User', optional: true
+      env :REDMINE_BASIC_AUTH_PASSWORD, 'Basic Auth Password', optional: true
 
       on(
         /create issue (?<rest>.+)/,
@@ -67,6 +69,8 @@ module Ruboty
         Ruboty::Redmine::Client.new(
           ENV['REDMINE_URL'],
           ENV['REDMINE_API_KEY'],
+          basic_auth_user: ENV['REDMINE_BASIC_AUTH_USER'],
+          basic_auth_password: ENV['REDMINE_BASIC_AUTH_PASSWORD'],
         )
       end
     end

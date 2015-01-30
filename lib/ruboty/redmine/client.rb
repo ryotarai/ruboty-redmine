@@ -5,9 +5,10 @@ require 'uri'
 module Ruboty
   module Redmine
     class Client
-      def initialize(url, api_key)
+      def initialize(url, api_key, options)
         @url = url
         @api_key = api_key
+        @options = options
       end
 
       def projects
@@ -49,6 +50,13 @@ module Ruboty
           faraday.request  :url_encoded
           faraday.response :logger if ENV['DEBUG']
           faraday.adapter  Faraday.default_adapter
+        end
+
+        basic_auth_user = @options[:basic_auth_user]
+        basic_auth_password = @options[:basic_auth_password]
+
+        if basic_auth_user && basic_auth_password
+          conn.basic_auth(basic_auth_user, basic_auth_password)
         end
       end
 
