@@ -1,3 +1,5 @@
+require "active_support/core_ext/hash/keys"
+
 require "ruboty/redmine/version"
 require "ruboty/redmine/client"
 require "ruboty/handlers/redmine"

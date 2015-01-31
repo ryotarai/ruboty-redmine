@@ -25,6 +25,37 @@ module Ruboty
         end
       end
 
+      def find_project(query)
+        projects.find do |project|
+          [
+            project.id.to_s,
+            project.name.downcase,
+            project.identifier.downcase,
+          ].include?(query.downcase)
+        end
+      end
+
+      def find_tracker(query)
+        trackers.find do |tracker|
+          [
+            tracker.id.to_s,
+            tracker.name.downcase,
+          ].include?(query.downcase)
+        end
+      end
+
+      def issues(opts)
+        params = {}
+        params[:project_id] = opts[:project].id if opts[:project]
+        params[:tracker_id] = opts[:project].id if opts[:tracker]
+        params[:sort] = opts[:sort] if opts[:sort]
+
+        res = JSON.parse(get('/issues.json', params).body)
+        res['issues'].map do |tracker|
+          OpenStruct.new(tracker)
+        end
+      end
+
       def create_issue(opts)
         req = {
           issue: {
