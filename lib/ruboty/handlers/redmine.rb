@@ -103,7 +103,7 @@ module Ruboty
       end
 
       def watch_issues(message)
-        if message.match_data.names.include?('assignees')
+        if message[:assignees]
           assignees = message[:assignees].split(',').map(&:to_i)
         else
           assignees = []
