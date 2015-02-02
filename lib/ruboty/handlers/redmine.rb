@@ -206,10 +206,6 @@ module Ruboty
                 end
 
                 new_issues.each do |new_issue|
-require 'pry'
-  Pry.config.input = STDIN
-  Pry.config.output = STDOUT
-binding.pry
                   assignees = watch['assignees']
                   assignee = nil
                   unless assignees.empty?
