@@ -47,7 +47,7 @@ module Ruboty
       def issues(opts)
         params = {}
         params[:project_id] = opts[:project].id if opts[:project]
-        params[:tracker_id] = opts[:project].id if opts[:tracker]
+        params[:tracker_id] = opts[:tracker].id if opts[:tracker]
         params[:sort] = opts[:sort] if opts[:sort]
 
         res = JSON.parse(get('/issues.json', params).body)
@@ -68,6 +68,15 @@ module Ruboty
         OpenStruct.new(
           JSON.parse(post('/issues.json', req).body)['issue']
         )
+      end
+
+      def update_issue(issue, opts)
+        req = {issue: opts}
+
+        res = put("/issues/#{issue.id}.json", req)
+        unless res.status == 200
+          raise "Updating issue failed. (#{res.body})"
+        end
       end
 
       def url_for_issue(issue)
@@ -103,6 +112,15 @@ module Ruboty
 
       def post(path, params = {})
         conn.post do |req|
+          req.url path
+          req.body = params.to_json
+          req.headers['X-Redmine-API-Key'] = @api_key
+          req.headers['Content-Type'] = 'application/json'
+        end
+      end
+
+      def put(path, params = {})
+        conn.put do |req|
           req.url path
           req.body = params.to_json
           req.headers['X-Redmine-API-Key'] = @api_key
