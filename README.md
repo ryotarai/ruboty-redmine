@@ -4,9 +4,66 @@ Redmine plugin for Ruboty
 
 ## Available commands
 
+### create issue
+
 ```
-ruboty create issue "subject" "project name" project "tracker name" tracker
+> ruboty create issue "subject" "Mobile" project "Feature" tracker
 ```
+
+You can register aliases:
+
+```
+> ruboty register redmine alias "mobile" '"Mobile" project "Feature" tracker'
+> ruboty create issue "subject" mobile
+```
+
+### watch issues
+
+```
+> ruboty watch redmine issues in "Feature" tracker of "Mobile" project
+```
+
+You will get notifications:
+
+```
+New Issue of Feature in Mobile project
+-> Awesome search feature
+-> https://redmine.example.com/issues/123
+```
+
+You can list and stop watching issues:
+
+```
+> ruboty list watching redmine issues
+#1 Feature tracker in Mobile project and assign to [] (your_chat_room)
+> ruboty stop watching redmine issues 1
+```
+
+### watch and assign issues
+
+First, associate Redmine user ID with your name in chat:
+
+```
+> ruboty associate redmine user 123 with "bob"
+> ruboty associate redmine user 456 with "alice"
+```
+
+Register tracker:
+
+```
+> ruboty watch redmine issues in "Feature" tracker of "Mobile" project and assign to 123,456
+```
+
+You will get notifications and the issue is assigned automatically:
+
+```
+New Issue of Feature in Mobile project
+-> Awesome search feature
+-> Assigned to @bob
+-> https://redmine.example.com/issues/123
+```
+
+The assignee will be elected by round-robin.
 
 ## Installation
 
