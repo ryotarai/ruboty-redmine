@@ -110,7 +110,7 @@ module Ruboty
         end
 
         watches << message.original.except(:robot).merge(
-          {id: watches.size + 1, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
+          {id: watches.last['id'] + 1, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
         ).stringify_keys
         message.reply("Watching.")
       end
