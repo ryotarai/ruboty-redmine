@@ -121,6 +121,17 @@ module Ruboty
           if assignees = watch['assignees']
             s << " and assign to #{assignees}"
           end
+
+          room = case watch['type']
+                 when "groupchat"
+                   watch['from'].split('@').first
+                 when "chat"
+                   watch['from_name']
+                 else
+                   "unknown"
+                 end
+
+          s << " (#{room})"
         end.join("\n")
 
         message.reply(reply)
