@@ -7,6 +7,7 @@ module Ruboty
       env :REDMINE_API_KEY, 'Redmine REST API key', optional: false
       env :REDMINE_BASIC_AUTH_USER, 'Basic Auth User', optional: true
       env :REDMINE_BASIC_AUTH_PASSWORD, 'Basic Auth Password', optional: true
+      env :REDMINE_CHECK_INTERVAL, 'Interval to check new issues', optional: true
 
       on(
         /create issue (?<rest>.+)/,
@@ -19,6 +20,36 @@ module Ruboty
         name: 'register_alias',
         description: 'Register an alias'
       )
+
+      on(
+        /watch redmine issues in "(?<tracker>[^"]+)" tracker of "(?<project>[^"]+)" project( and assign to (?<assignees>[\d,]+)|)/,
+        name: 'watch_issues',
+        description: 'Watch issues'
+      )
+
+      on(
+        /list watching redmine issues/,
+        name: 'list_watching',
+        description: 'List watching issues'
+      )
+
+      on(
+        /stop watching redmine issues (?<id>\d+)/,
+        name: 'stop_watching',
+        description: 'Stop watching issues',
+      )
+
+      on(
+        /associate redmine user (?<redmine_id>\d+) with "(?<chat_name>[^"]+)"/,
+        name: 'associate_user',
+        description: 'Associate redmine_id with chat_name',
+      )
+
+      def initialize(*args)
+        super
+
+        start_to_watch_issues
+      end
 
       def create_issue(message)
         words = parse_arg(message[:rest])
@@ -37,13 +68,7 @@ module Ruboty
 
           case word
           when 'project'
-            project = redmine.projects.find do |project|
-              [
-                project.id.to_s,
-                project.name.downcase,
-                project.identifier.downcase,
-              ].include?(arg.downcase)
-            end
+            project = redmine.find_project(arg)
 
             unless project
               message.reply("Project '#{arg}' is not found.")
@@ -52,12 +77,7 @@ module Ruboty
 
             req[:project] = project
           when 'tracker'
-            tracker = redmine.trackers.find do |tracker|
-              [
-                tracker.id.to_s,
-                tracker.name.downcase,
-              ].include?(arg.downcase)
-            end
+            tracker = redmine.find_tracker(arg)
 
             unless tracker
               message.reply("Tracker '#{arg}' is not found.")
@@ -78,14 +98,53 @@ module Ruboty
       end
 
       def register_alias(message)
-        aliases = (robot.brain.data[NAMESPACE][:aliases] ||= {})
         aliases[message[:name]] = message[:expand_to]
+        message.reply("Registered.")
+      end
+
+      def watch_issues(message)
+        if message.match_data.names.include?('assignees')
+          assignees = message[:assignees].split(',').map(&:to_i)
+        else
+          assignees = []
+        end
+
+        watches << message.original.except(:robot).merge(
+          {id: watches.size + 1, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
+        ).stringify_keys
+        message.reply("Watching.")
+      end
+
+      def list_watching(message)
+        reply = watches.map do |watch|
+          s = "##{watch['id']} #{watch['tracker']} tracker in #{watch['project']} project"
+          if assignees = watch['assignees']
+            s << " and assign to #{assignees}"
+          end
+        end.join("\n")
+
+        message.reply(reply)
+      end
+
+      def stop_watching(message)
+        id = message[:id].to_i
+        watches.reject! do |watch|
+          watch['id'] == id
+        end
+
+        message.reply("Stopped.")
+      end
+
+      def associate_user(message)
+        users << {"redmine_id" => message[:redmine_id].to_i, "chat_name" => message[:chat_name]}
+
+        message.reply("Registered.")
       end
 
       private
 
       def redmine
-        Ruboty::Redmine::Client.new(
+        @redmine ||= Ruboty::Redmine::Client.new(
           ENV['REDMINE_URL'],
           ENV['REDMINE_API_KEY'],
           basic_auth_user: ENV['REDMINE_BASIC_AUTH_USER'],
@@ -94,8 +153,23 @@ module Ruboty
       end
 
       def alias_for(name)
-        aliases = robot.brain.data[NAMESPACE][:aliases] || {}
         aliases[name]
+      end
+
+      def aliases
+        robot.brain.data["#{NAMESPACE}_aliases"] ||= {}
+      end
+
+      def watches
+        robot.brain.data["#{NAMESPACE}_watches"] ||= []
+      end
+
+      def users
+        robot.brain.data["#{NAMESPACE}_users"] ||= []
+      end
+
+      def find_user_by_id(id)
+        users.find {|user| user['redmine_id'] == id }
       end
 
       def parse_arg(text)
@@ -103,6 +177,79 @@ module Ruboty
           v.shift
           v.find {|itself| itself }
         end
+      end
+
+      def start_to_watch_issues
+        thread = Thread.start do
+          last_issues_for_watch = {}
+
+          while true
+            sleep (ENV['REDMINE_CHECK_INTERVAL'] || 30).to_i
+            Ruboty::Redmine.log("Checking new issues...")
+            watches.each do |watch|
+              project = redmine.find_project(watch['project'])
+              tracker = redmine.find_tracker(watch['tracker'])
+
+              issues = redmine.issues(project: project, tracker: tracker, sort: 'id:desc')
+              if last_issues = last_issues_for_watch[watch]
+                new_issues = []
+                issues.each do |issue|
+                  found = last_issues.find do |last_issue|
+                    last_issue.id == issue.id
+                  end
+
+                  if found
+                    break
+                  else
+                    new_issues << issue
+                  end
+                end
+
+                new_issues.each do |new_issue|
+require 'pry'
+  Pry.config.input = STDIN
+  Pry.config.output = STDOUT
+binding.pry
+                  assignees = watch['assignees']
+                  assignee = nil
+                  unless assignees.empty?
+                    assignee = assignees[watch['assignee_index'] % assignees.size]
+                    watch['assignee_index'] += 1
+
+                    assignee = find_user_by_id(assignee)
+                  end
+
+                  if assignee
+                    redmine.update_issue(new_issue, assigned_to_id: assignee['redmine_id'])
+                  end
+
+                  msg = <<-EOC
+New Issue of #{tracker.name} in #{project.name} project
+-> #{new_issue.subject}
+                  EOC
+
+                  if assignee
+                    msg += <<-EOC
+-> Assigned to @#{assignee['chat_name']}
+                    EOC
+                  end
+
+                  msg += <<-EOC
+-> #{redmine.url_for_issue(new_issue)}
+                  EOC
+
+                  Message.new(
+                    watch.symbolize_keys.merge(robot: robot)
+                  ).reply(msg)
+                end
+              end
+
+              last_issues_for_watch[watch] = issues
+            end
+          end
+        end
+
+        thread.abort_on_exception = true
       end
     end
   end
