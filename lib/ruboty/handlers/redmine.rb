@@ -219,7 +219,7 @@ module Ruboty
                 new_issues.each do |new_issue|
                   assignees = watch['assignees']
                   assignee = nil
-                  unless !new_issue.assigned_to && assignees.empty?
+                  if !assignees.empty? && !new_issue.assigned_to
                     assignee = assignees[watch['assignee_index'] % assignees.size]
                     watch['assignee_index'] += 1
 
