@@ -56,7 +56,7 @@ module Ruboty
 
         words = parse_arg(message[:rest])
         req = {}
-        req[:subject] = "#{words.shift} (by #{from_name})"
+        req[:subject] = "#{words.shift} (from #{from_name})"
 
         if words.size == 1
           expand_to = alias_for(words.first)
