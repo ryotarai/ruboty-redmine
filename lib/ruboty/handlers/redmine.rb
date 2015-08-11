@@ -52,9 +52,11 @@ module Ruboty
       end
 
       def create_issue(message)
+        from_name = message.original[:from_name]
+
         words = parse_arg(message[:rest])
         req = {}
-        req[:subject] = words.shift
+        req[:subject] = "#{words.shift} (by #{from_name})"
 
         if words.size == 1
           expand_to = alias_for(words.first)

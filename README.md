@@ -2,6 +2,8 @@
 
 Redmine plugin for Ruboty
 
+This plugin is tested only with ruboty-hipchat.
+
 ## Available commands
 
 ### create issue
