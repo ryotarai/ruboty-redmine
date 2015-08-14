@@ -12,13 +12,6 @@ This plugin is tested only with ruboty-hipchat.
 > ruboty create issue "subject" "Mobile" project "Feature" tracker
 ```
 
-You can register aliases:
-
-```
-> ruboty register redmine alias "mobile" '"Mobile" project "Feature" tracker'
-> ruboty create issue "subject" mobile
-```
-
 ### watch issues
 
 ```

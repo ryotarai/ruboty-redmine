@@ -16,12 +16,6 @@ module Ruboty
       )
 
       on(
-        /register redmine alias "(?<name>[^"]+)" ("(?<expand_to>[^"]+)"|'(?<expand_to>[^']+)')/,
-        name: 'register_alias',
-        description: 'Register an alias'
-      )
-
-      on(
         /watch redmine issues in "(?<tracker>[^"]+)" tracker of "(?<project>[^"]+)" project( and assign to (?<assignees>[\d,]+)|)/,
         name: 'watch_issues',
         description: 'Watch issues'
@@ -58,11 +52,6 @@ module Ruboty
         req = {}
         req[:subject] = "#{words.shift} (from #{from_name})"
 
-        if words.size == 1
-          expand_to = alias_for(words.first)
-          words = parse_arg(expand_to) if expand_to
-        end
-
         words.each_with_index do |word, i|
           next if i == 0
 
@@ -97,11 +86,6 @@ module Ruboty
 
         issue = redmine.create_issue(req)
         message.reply("Issue created: #{redmine.url_for_issue(issue)}")
-      end
-
-      def register_alias(message)
-        aliases[message[:name]] = message[:expand_to]
-        message.reply("Registered.")
       end
 
       def watch_issues(message)
@@ -163,14 +147,6 @@ module Ruboty
           basic_auth_user: ENV['REDMINE_BASIC_AUTH_USER'],
           basic_auth_password: ENV['REDMINE_BASIC_AUTH_PASSWORD'],
         )
-      end
-
-      def alias_for(name)
-        aliases[name]
-      end
-
-      def aliases
-        robot.brain.data["#{NAMESPACE}_aliases"] ||= {}
       end
 
       def watches
