@@ -157,13 +157,13 @@ module Ruboty
       end
 
       def stop_assigning(message)
-        u = message[:user]
+        u = message[:redmine_id]
         absent_users << u.to_i
         message.reply("Stop assigning issues to #{u}")
       end
 
       def start_assigning(message)
-        u = message[:user]
+        u = message[:redmine_id]
         absent_users.delete(u.to_i)
         message.reply("Start assigning issues to #{u}")
       end
