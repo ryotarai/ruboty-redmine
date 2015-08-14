@@ -46,8 +46,8 @@ You can list and stop watching issues:
 First, associate Redmine user ID with your name in chat:
 
 ```
-> ruboty associate redmine user 123 with "bob"
-> ruboty associate redmine user 456 with "alice"
+> ruboty redmine user #123 is @bob
+> ruboty redmine user #456 is @alice
 ```
 
 Register tracker:

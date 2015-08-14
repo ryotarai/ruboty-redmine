@@ -40,7 +40,7 @@ module Ruboty
       )
 
       on(
-        /associate redmine user (?<redmine_id>\d+) with "(?<chat_name>[^"]+)"/,
+        /redmine user #(?<redmine_id>\d+) is @(?<chat_name>.+)/,
         name: 'associate_user',
         description: 'Associate redmine_id with chat_name',
       )
