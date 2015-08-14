@@ -40,13 +40,13 @@ module Ruboty
       )
 
       on(
-        /redmine stop assigning to (?<redmine_id>\d+)/,
+        /redmine stop assigning to (?<user>.+)/,
         name: 'stop_assigning',
         description: 'Stop assigning issues to the user',
       )
 
       on(
-        /redmine start assigning to (?<redmine_id>\d+)/,
+        /redmine start assigning to (?<user>.+)/,
         name: 'start_assigning',
         description: 'Start assigning issues to the user',
       )
@@ -157,13 +157,23 @@ module Ruboty
       end
 
       def stop_assigning(message)
-        u = message[:redmine_id]
+        u = username_to_redmine_id(message[:user])
+        unless u
+          message.reply("#{message[:user]} is not found")
+          return
+        end
+
         absent_users << u.to_i
         message.reply("Stop assigning issues to #{u}")
       end
 
       def start_assigning(message)
-        u = message[:redmine_id]
+        u = username_to_redmine_id(message[:user])
+        unless u
+          message.reply("#{message[:user]} is not found")
+          return
+        end
+
         absent_users.delete(u.to_i)
         message.reply("Start assigning issues to #{u}")
       end
@@ -173,6 +183,19 @@ module Ruboty
       end
 
       private
+
+      def username_to_redmine_id(username)
+        case username
+        when /\A\d+\z/
+          username.to_i # redmine_id
+        else
+          u = users.find do |u|
+            u['chat_name'] == username
+          end
+
+          u && u['redmine_id']
+        end
+      end
 
       def redmine
         @redmine ||= Ruboty::Redmine::Client.new(
