@@ -51,6 +51,12 @@ module Ruboty
         description: 'Start assigning issues to the user',
       )
 
+      on(
+        /redmine list absent users/,
+        name: 'list_absent_users',
+        description: 'List absent users',
+      )
+
       def initialize(*args)
         super
 
@@ -160,6 +166,10 @@ module Ruboty
         u = message[:user]
         absent_users.delete(u.to_i)
         message.reply("Start assigning issues to #{u}")
+      end
+
+      def list_absent_users(message)
+        message.reply(absent_users.map(&:to_s).join(", "))
       end
 
       private
