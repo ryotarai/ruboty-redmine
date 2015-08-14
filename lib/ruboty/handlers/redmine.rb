@@ -39,6 +39,18 @@ module Ruboty
         description: 'Associate redmine_id with chat_name',
       )
 
+      on(
+        /redmine stop assigning to (?<redmine_id>\d+)/,
+        name: 'stop_assigning',
+        description: 'Stop assigning issues to the user',
+      )
+
+      on(
+        /redmine start assigning to (?<redmine_id>\d+)/,
+        name: 'start_assigning',
+        description: 'Start assigning issues to the user',
+      )
+
       def initialize(*args)
         super
 
@@ -138,6 +150,18 @@ module Ruboty
         message.reply("Registered.")
       end
 
+      def stop_assigning(message)
+        u = message[:user]
+        absent_users << u.to_i
+        message.reply("Stop assigning issues to #{u}")
+      end
+
+      def start_assigning(message)
+        u = message[:user]
+        absent_users.delete(u.to_i)
+        message.reply("Start assigning issues to #{u}")
+      end
+
       private
 
       def redmine
@@ -155,6 +179,10 @@ module Ruboty
 
       def users
         robot.brain.data["#{NAMESPACE}_users"] ||= []
+      end
+
+      def absent_users
+        robot.brain.data["#{NAMESPACE}_absent_users"] ||= []
       end
 
       def find_user_by_id(id)
@@ -198,6 +226,7 @@ module Ruboty
                   assignees = watch['assignees']
                   assignee = nil
                   if !assignees.empty? && !new_issue.assigned_to
+                    assignees -= absent_users
                     assignee = assignees[watch['assignee_index'] % assignees.size]
                     watch['assignee_index'] += 1
 
