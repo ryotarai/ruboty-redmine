@@ -163,7 +163,12 @@ module Ruboty
           return
         end
 
-        absent_users << u.to_i
+        if absent_users.include?(u)
+          message.reply("Assigning to #{message[:user]} is already stopped")
+          return
+        end
+
+        absent_users << u
         message.reply("Stop assigning issues to #{u}")
       end
 
@@ -174,7 +179,12 @@ module Ruboty
           return
         end
 
-        absent_users.delete(u.to_i)
+        unless absent_users.include?(u)
+          message.reply("Assigning to #{message[:user]} is not stopped")
+          return
+        end
+
+        absent_users.delete(u)
         message.reply("Start assigning issues to #{u}")
       end
 
@@ -193,7 +203,7 @@ module Ruboty
             u['chat_name'] == username
           end
 
-          u && u['redmine_id']
+          u && u['redmine_id'].to_i
         end
       end
 
