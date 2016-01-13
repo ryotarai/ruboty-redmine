@@ -179,7 +179,7 @@ module Ruboty
       end
 
       def list_absent_users(message)
-        message.reply(absent_users.map(&:to_s).join(", "))
+        message.reply(absent_users.map {|id| redmine_id_to_username(id) }.join(", "))
       end
 
       private
@@ -195,6 +195,13 @@ module Ruboty
 
           u && u['redmine_id']
         end
+      end
+
+      def redmine_id_to_username(redmine_id)
+        u = users.find do |u|
+          u['redmine_id'] == redmine_id.to_i
+        end
+        u && u['chat_name']
       end
 
       def redmine
