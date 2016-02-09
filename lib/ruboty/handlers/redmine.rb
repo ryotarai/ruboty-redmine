@@ -8,6 +8,7 @@ module Ruboty
       env :REDMINE_BASIC_AUTH_USER, 'Basic Auth User', optional: true
       env :REDMINE_BASIC_AUTH_PASSWORD, 'Basic Auth Password', optional: true
       env :REDMINE_CHECK_INTERVAL, 'Interval to check new issues', optional: true
+      env :REDMINE_HTTP_PROXY, 'HTTP proxy', optional: true
 
       on(
         /create issue (?<rest>.+)/,
@@ -220,6 +221,7 @@ module Ruboty
           ENV['REDMINE_API_KEY'],
           basic_auth_user: ENV['REDMINE_BASIC_AUTH_USER'],
           basic_auth_password: ENV['REDMINE_BASIC_AUTH_PASSWORD'],
+          http_proxy: ENV['REDMINE_HTTP_PROXY'],
         )
       end
 

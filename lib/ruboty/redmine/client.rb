@@ -86,7 +86,10 @@ module Ruboty
       private
 
       def conn
-        conn = Faraday.new(url: @url) do |faraday|
+        new_options = {url: @url}
+        new_options[:proxy] = @options[:http_proxy] if @options[:http_proxy]
+
+        conn = Faraday.new(new_options) do |faraday|
           faraday.request  :url_encoded
           faraday.response :logger if ENV['DEBUG']
           faraday.adapter  Faraday.default_adapter
