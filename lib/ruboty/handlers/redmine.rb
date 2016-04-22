@@ -114,9 +114,16 @@ module Ruboty
           assignees = []
         end
 
+        id = if watches.empty?
+               1
+             else
+               watches.last['id'] + 1
+             end
+
         watches << message.original.except(:robot).merge(
-          {id: watches.last['id'] + 1, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
+          {id: id, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
         ).stringify_keys
+
         message.reply("Watching.")
       end
 
