@@ -254,7 +254,6 @@ module Ruboty
 
           while true
             sleep (ENV['REDMINE_CHECK_INTERVAL'] || 30).to_i
-            Ruboty::Redmine.log("Checking new issues...")
             watches.each do |watch|
               project = redmine.find_project(watch['project'])
               tracker = redmine.find_tracker(watch['tracker'])
