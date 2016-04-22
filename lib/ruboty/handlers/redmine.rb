@@ -108,6 +108,8 @@ module Ruboty
       end
 
       def watch_issues(message)
+        p message
+
         if message[:assignees]
           assignees = message[:assignees].split(',').map(&:to_i)
         else
@@ -117,6 +119,9 @@ module Ruboty
         watches << message.original.except(:robot).merge(
           {id: watches.last['id'] + 1, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
         ).stringify_keys
+
+        p watches
+
         message.reply("Watching.")
       end
 
