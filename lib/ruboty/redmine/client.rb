@@ -68,6 +68,36 @@ module Ruboty
         OpenStruct.new(
           JSON.parse(post('/issues.json', req).body)['issue']
         )
+        # {
+        #   "issue": {
+        #     "id": 1,
+        #     "project": {
+        #       "id": 1,
+        #       "name": "..."
+        #     },
+        #     "tracker": {
+        #       "id": 1,
+        #       "name": "..."
+        #     },
+        #     "status": {
+        #       "id": 1,
+        #       "name": "new"
+        #     },
+        #     "priority": {
+        #       "id": 4,
+        #       "name": "通常"
+        #     },
+        #     "author": {
+        #       "id": 1,
+        #       "name": "Arai Ryota"
+        #     },
+        #     "subject": "This is test",
+        #     "start_date": "2017-02-01",
+        #     "done_ratio": 0,
+        #     "created_on": "2017-02-01T11:10:35Z",
+        #     "updated_on": "2017-02-01T11:10:35Z"
+        #   }
+        # }
       end
 
       def update_issue(issue, opts)

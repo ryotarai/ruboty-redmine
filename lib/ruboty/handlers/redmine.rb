@@ -1,7 +1,9 @@
+require 'slack-notifier'
+
 module Ruboty
   module Handlers
     class Redmine < Base
-      NAMESPACE = 'redmine'
+      NAMESPACE = 'redmine_v1'
 
       env :REDMINE_URL, 'Redmine url (e.g. http://your-redmine)', optional: false
       env :REDMINE_API_KEY, 'Redmine REST API key', optional: false
@@ -9,217 +11,223 @@ module Ruboty
       env :REDMINE_BASIC_AUTH_PASSWORD, 'Basic Auth Password', optional: true
       env :REDMINE_CHECK_INTERVAL, 'Interval to check new issues', optional: true
       env :REDMINE_HTTP_PROXY, 'HTTP proxy', optional: true
+      env :SLACK_WEBHOOK_URL, 'Slack webhook URL', optional: false
 
       on(
-        /create issue (?<rest>.+)/,
+        /create redmine (?<tracker>[^ ]+) issue in (?<project>[^ ]+) (?<subject>.+)/,
         name: 'create_issue',
-        description: 'Create a new issue'
+        description: 'Create a new Redmine issue'
       )
 
       on(
-        /watch redmine issues in "(?<tracker>[^"]+)" tracker of "(?<project>[^"]+)" project( and assign to (?<assignees>[\d,]+)|)/,
-        name: 'watch_issues',
-        description: 'Watch issues'
+        /assign redmine (?<tracker>[^ ]+) issues in (?<project>[^ ]+) to (?<mention_name>[^ ]+) (?<redmine_user_id>\d+) and notify to (?<channel>[^ ]+)/,
+        name: 'assign_issues',
+        description: 'Assign Redmine issues when created'
       )
 
       on(
-        /list watching redmine issues/,
-        name: 'list_watching',
-        description: 'List watching issues'
+        /list redmine assignees/,
+        name: 'list_assignees',
+        description: 'List rules to assign Redmine issues',
       )
 
       on(
-        /stop watching redmine issues (?<id>\d+)/,
-        name: 'stop_watching',
-        description: 'Stop watching issues',
+        /remove redmine assignee (?<id>\d+)/,
+        name: 'remove_redmine_assignee',
+        description: 'Stop assigning Redmine issues'
       )
 
       on(
-        /redmine user #(?<redmine_id>\d+) is @(?<chat_name>.+)/,
-        name: 'associate_user',
-        description: 'Associate redmine_id with chat_name',
+        /pause assigning redmine issues to (?<mention_name>[^ ]+) for (?<duration>[^ ]+)/,
+        name: 'pause_assigning',
+        description: 'Pause assigning Redmine issues',
       )
 
       on(
-        /redmine stop assigning to (?<user>.+)/,
-        name: 'stop_assigning',
-        description: 'Stop assigning issues to the user',
+        /unpause assigning redmine issues to (?<mention_name>[^ ]+)/,
+        name: 'unpause_assigning',
+        description: 'Unpause assigning Redmine issues',
       )
 
       on(
-        /redmine start assigning to (?<user>.+)/,
-        name: 'start_assigning',
-        description: 'Start assigning issues to the user',
-      )
-
-      on(
-        /redmine list absent users/,
-        name: 'list_absent_users',
-        description: 'List absent users',
+        /list paused assignees/,
+        name: 'list_paused_assignees',
+        description: 'List paused Redmine assignees',
       )
 
       def initialize(*args)
         super
-
-        start_to_watch_issues
       end
 
       def create_issue(message)
         from_name = message.original[:from_name]
 
-        words = parse_arg(message[:rest])
         req = {}
-        req[:subject] = "#{words.shift} (from #{from_name})"
+        req[:subject] = "#{message[:subject]} (from #{from_name})"
 
-        words.each_with_index do |word, i|
-          next if i == 0
-
-          arg = words[i - 1]
-
-          case word
-          when 'project'
-            project = redmine.find_project(arg)
-
-            unless project
-              message.reply("Project '#{arg}' is not found.")
-              return
-            end
-
-            req[:project] = project
-          when 'tracker'
-            tracker = redmine.find_tracker(arg)
-
-            unless tracker
-              message.reply("Tracker '#{arg}' is not found.")
-              return
-            end
-
-            req[:tracker] = tracker
-          end
-        end
-
-        unless req.has_key?(:project)
-          message.reply("Project must be specified.")
+        project = redmine.find_project(message[:project])
+        unless project
+          message.reply("Project '#{message[:project]}' is not found.")
           return
         end
+        req[:project] = project
+
+        tracker = redmine.find_tracker(message[:tracker])
+        unless tracker
+          message.reply("Tracker '#{message[:tracker]}' is not found.")
+          return
+        end
+        req[:tracker] = tracker
 
         issue = redmine.create_issue(req)
+        Ruboty.logger.debug("Created new issue: #{issue.inspect}")
         message.reply("Issue created: #{redmine.url_for_issue(issue)}")
+
+        rules = assignees.select do |r|
+          paused = active_paused_assignees.find do |a|
+            a[:mention_name] == r[:mention_name]
+          end
+          next false if paused
+
+          r[:project] == issue.project['name'] &&
+            r[:tracker] == issue.tracker['name']
+        end
+        rule = rules[issue.id % rules.size]
+        redmine.update_issue(issue, assigned_to_id: rule[:redmine_user_id])
+
+        notify_slack(rule[:notify_to], <<-EOTEXT)
+New Issue of #{issue.tracker['name']} in #{issue.project['name']} project
+-> #{issue.subject}
+-> Assigned to @#{rule[:mention_name]}
+-> #{redmine.url_for_issue(issue)}
+        EOTEXT
       end
 
-      def watch_issues(message)
-        if message[:assignees]
-          assignees = message[:assignees].split(',').map(&:to_i)
-        else
-          assignees = []
+      def assignees
+        robot.brain.data["#{NAMESPACE}_assigns"] ||= []
+      end
+
+      def paused_assignees
+        robot.brain.data["#{NAMESPACE}_paused_assignees"] ||= []
+      end
+
+      def active_paused_assignees
+        paused_assignees.select do |a|
+          Time.now < Time.at(a[:expire_at])
+        end
+      end
+
+      def assign_issues(message)
+        rule = {
+          tracker: message[:tracker],
+          project: message[:project],
+          mention_name: message[:mention_name].gsub(/\A@/, ''),
+          redmine_user_id: message[:redmine_user_id].gsub(/\A#/, '').to_i,
+          notify_to: message[:channel].gsub(/\A#/, ''),
+        }
+
+        assignees << rule
+
+        message.reply("Registered: #{rule}")
+      end
+
+      def list_assignees(message)
+        if assignees.empty?
+          message.reply("No rule is found")
         end
 
-        id = if watches.empty?
-               1
-             else
-               watches.last['id'] + 1
-             end
-
-        watches << message.original.except(:robot).merge(
-          {id: id, project: message[:project], tracker: message[:tracker], assignees: assignees, assignee_index: 0}
-        ).stringify_keys
-
-        message.reply("Watching.")
-      end
-
-      def list_watching(message)
-        reply = watches.map do |watch|
-          s = "##{watch['id']} #{watch['tracker']} tracker in #{watch['project']} project"
-          if assignees = watch['assignees']
-            s << " and assign to #{assignees}"
-          end
-
-          room = case watch['type']
-                 when "groupchat"
-                   watch['from'].split('@').first
-                 when "chat"
-                   watch['from_name']
-                 else
-                   "unknown"
-                 end
-
-          s << " (#{room})"
+        reply = assignees.map do |rule|
+          "#{rule.object_id} #{rule}"
         end.join("\n")
 
         message.reply(reply)
       end
 
-      def stop_watching(message)
+      def remove_redmine_assignee(message)
         id = message[:id].to_i
-        watches.reject! do |watch|
-          watch['id'] == id
-        end
-
-        message.reply("Stopped.")
-      end
-
-      def associate_user(message)
-        users << {"redmine_id" => message[:redmine_id].to_i, "chat_name" => message[:chat_name]}
-
-        message.reply("Registered.")
-      end
-
-      def stop_assigning(message)
-        u = username_to_redmine_id(message[:user])
-        unless u
-          message.reply("#{message[:user]} is not found")
-          return
-        end
-
-        if absent_users.include?(u)
-          message.reply("Assigning to #{message[:user]} is already stopped")
-          return
-        end
-
-        absent_users << u
-        message.reply("Stop assigning issues to #{u}")
-      end
-
-      def start_assigning(message)
-        u = username_to_redmine_id(message[:user])
-        unless u
-          message.reply("#{message[:user]} is not found")
-          return
-        end
-
-        unless absent_users.include?(u)
-          message.reply("Assigning to #{message[:user]} is not stopped")
-          return
-        end
-
-        absent_users.delete(u)
-        message.reply("Start assigning issues to #{u}")
-      end
-
-      def list_absent_users(message)
-        message.reply(absent_users.map {|id| redmine_id_to_username(id) }.join(", "))
-      end
-
-      private
-
-      def username_to_redmine_id(username)
-        case username
-        when /\A\d+\z/
-          username.to_i # redmine_id
+        rule = assignees.find {|r| r.object_id == id }
+        if rule
+          assignees.delete(rule)
+          message.reply("Rule #{id} is removed")
         else
-          u = users.find do |u|
-            u['chat_name'] == username
-          end
-
-          u && u['redmine_id'].to_i
+          message.reply("The rule is not found")
         end
       end
 
-      def redmine_id_to_username(redmine_id)
-        u = users.find do |u|
-          u['redmine_id'] == redmine_id.to_i
+      def pause_assigning(message)
+        mention_name = message[:mention_name]
+        duration = message[:duration]
+
+        expire_at = Time.now + parse_duration_to_sec(duration)
+
+        pause = {
+          mention_name: mention_name.gsub(/\A@/, ''),
+          expire_at: expire_at.to_i
+        }
+        paused_assignees << pause
+
+        message.reply("Paused: #{pause}")
+      end
+
+      def unpause_assigning(message)
+        mention_name = message[:mention_name].gsub(/\A@/, '')
+
+        prev_size = paused_assignees.size
+        paused_assignees.reject! do |a|
+          a[:mention_name] == mention_name
         end
-        u && u['chat_name']
+
+        if parsed_assignees.size == prev_size
+          message.reply("No paused assignee is found")
+        else
+          message.reply("Unpaused")
+        end
+      end
+
+      def list_paused_assignees(message)
+        if paused_assignees.empty?
+          message.reply("No paused assingee is found.")
+          return
+        end
+
+        reply = active_paused_assignees.map do |a|
+          "#{a[:mention_name]} (until #{Time.at(a[:expire_at])})"
+        end.join("\n")
+
+        message.reply(reply)
+      end
+
+      def parse_duration_to_sec(d)
+        sum = 0
+        d.scan(/(\d+)([smhdw])/) do |n, u|
+          scale = case u
+                  when 's'
+                    1
+                  when 'm'
+                    60
+                  when 'h'
+                    60*60
+                  when 'd'
+                    24*60*60
+                  when 'w'
+                    7*24*60*60
+                  end
+          sum += n.to_i + scale
+        end
+        sum
+      end
+
+      def notify_slack(channel, message)
+        slack_notifier.ping(
+          text: message,
+          channel: channel,
+          username: 'ruboty',
+          link_names: '1',
+        )
+      end
+
+      def slack_notifier
+        @slack_notifier ||= Slack::Notifier.new(ENV['SLACK_WEBHOOK_URL'])
       end
 
       def redmine
@@ -230,98 +238,6 @@ module Ruboty
           basic_auth_password: ENV['REDMINE_BASIC_AUTH_PASSWORD'],
           http_proxy: ENV['REDMINE_HTTP_PROXY'],
         )
-      end
-
-      def watches
-        robot.brain.data["#{NAMESPACE}_watches"] ||= []
-      end
-
-      def users
-        robot.brain.data["#{NAMESPACE}_users"] ||= []
-      end
-
-      def absent_users
-        robot.brain.data["#{NAMESPACE}_absent_users"] ||= []
-      end
-
-      def find_user_by_id(id)
-        users.find {|user| user['redmine_id'] == id }
-      end
-
-      def parse_arg(text)
-        text.scan(/("([^"]+)"|'([^']+)'|([^ ]+))/).map do |v|
-          v.shift
-          v.find {|itself| itself }
-        end
-      end
-
-      def start_to_watch_issues
-        thread = Thread.start do
-          last_issues_for_watch = {}
-
-          while true
-            sleep (ENV['REDMINE_CHECK_INTERVAL'] || 30).to_i
-            watches.each do |watch|
-              project = redmine.find_project(watch['project'])
-              tracker = redmine.find_tracker(watch['tracker'])
-
-              issues = redmine.issues(project: project, tracker: tracker, sort: 'id:desc')
-              if last_issues = last_issues_for_watch[watch]
-                new_issues = []
-                issues.each do |issue|
-                  found = last_issues.find do |last_issue|
-                    last_issue.id == issue.id
-                  end
-
-                  if found
-                    break
-                  else
-                    new_issues << issue
-                  end
-                end
-
-                new_issues.each do |new_issue|
-                  assignees = watch['assignees']
-                  assignee = nil
-                  if !assignees.empty? && !new_issue.assigned_to
-                    assignees -= absent_users
-                    assignee = assignees[watch['assignee_index'] % assignees.size]
-                    watch['assignee_index'] += 1
-
-                    assignee = find_user_by_id(assignee)
-                  end
-
-                  if assignee
-                    redmine.update_issue(new_issue, assigned_to_id: assignee['redmine_id'])
-                  end
-
-                  msg = <<-EOC
-New Issue of #{tracker.name} in #{project.name} project
--> #{new_issue.subject}
-                  EOC
-
-                  if assignee
-                    msg += <<-EOC
--> Assigned to @#{assignee['chat_name']}
-                    EOC
-                  end
-
-                  msg += <<-EOC
--> #{redmine.url_for_issue(new_issue)}
-                  EOC
-
-                  Message.new(
-                    watch.symbolize_keys.merge(robot: robot)
-                  ).reply(msg)
-                end
-              end
-
-              last_issues_for_watch[watch] = issues
-            end
-          end
-        end
-
-        thread.abort_on_exception = true
       end
     end
   end
