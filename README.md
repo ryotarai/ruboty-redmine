@@ -2,63 +2,26 @@
 
 Redmine plugin for Ruboty
 
-This plugin is tested only with ruboty-hipchat.
+**This plugin currently supports only Slack**
 
 ## Available commands
 
-### create issue
-
 ```
-> ruboty create issue "subject" "Mobile" project "Feature" tracker
+# Creating an issue
+ruboty create redmine YOURTRACKER issue in YOURPROJECT subject of your issue
+# Automatic assign
+ruboty assign YOURTRACKER issues in YOURPROJECT to @MENTION_NAME_OF_ASSIGNEE REDMINE_USER_ID_OF_ASSIGNEE and notify to #CHANNEL_TO_BE_NOTIFIED
+# List assignees
+ruboty list redmine assignees
+# Remove assignee
+ruboty remove redmine assignee ID_GOT_FROM_LIST_COMMAND
+# Pause assigning temporalily
+ruboty pause assigning redmine issues to @MENTION_NAME_OF_ASSIGNEE for 1w1d1h1m1s
+# Unpause assigning
+ruboty unpause assigning redmien issues to @MENTION_NAME_OF_ASSIGNEE
+# List paused assignees
+ruboty list paused assignees
 ```
-
-### watch issues
-
-```
-> ruboty watch redmine issues in "Feature" tracker of "Mobile" project
-```
-
-You will get notifications:
-
-```
-New Issue of Feature in Mobile project
--> Awesome search feature
--> https://redmine.example.com/issues/123
-```
-
-You can list and stop watching issues:
-
-```
-> ruboty list watching redmine issues
-#1 Feature tracker in Mobile project and assign to [] (your_chat_room)
-> ruboty stop watching redmine issues 1
-```
-
-### watch and assign issues
-
-First, associate Redmine user ID with your name in chat:
-
-```
-> ruboty redmine user #123 is @bob
-> ruboty redmine user #456 is @alice
-```
-
-Register tracker:
-
-```
-> ruboty watch redmine issues in "Feature" tracker of "Mobile" project and assign to 123,456
-```
-
-You will get notifications and the issue is assigned automatically:
-
-```
-New Issue of Feature in Mobile project
--> Awesome search feature
--> Assigned to @bob
--> https://redmine.example.com/issues/123
-```
-
-The assignee will be elected by round-robin.
 
 ## Installation
 
